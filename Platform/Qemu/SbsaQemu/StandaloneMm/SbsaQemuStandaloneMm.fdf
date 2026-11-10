@@ -1,0 +1,128 @@
+## @file
+#  Standalone MM image for QEMU sbsa-ref (TF-A SPM_MM BL32).
+#  Base must match TF-A PLAT_QEMU_SP_IMAGE_BASE (0x20002000), size 0x300000.
+#
+#  SPDX-License-Identifier: BSD-2-Clause-Patent
+##
+
+[FD.STANDALONE_MM]
+BaseAddress   = 0x20002000|gArmTokenSpaceGuid.PcdFdBaseAddress
+Size          = 0x00300000|gArmTokenSpaceGuid.PcdFdSize
+ErasePolarity = 0
+BlockSize     = 0x00001000
+NumBlocks     = 0x300
+
+0x00000000|0x00300000
+gArmTokenSpaceGuid.PcdFvBaseAddress|gArmTokenSpaceGuid.PcdFvSize
+FV = FVMAIN_COMPACT
+
+[FV.FvMain]
+BlockSize          = 0x40
+NumBlocks          = 0
+FvAlignment        = 16
+ERASE_POLARITY     = 1
+MEMORY_MAPPED      = TRUE
+STICKY_WRITE       = TRUE
+LOCK_CAP           = TRUE
+LOCK_STATUS        = TRUE
+WRITE_DISABLED_CAP = TRUE
+WRITE_ENABLED_CAP  = TRUE
+WRITE_STATUS       = TRUE
+WRITE_LOCK_CAP     = TRUE
+WRITE_LOCK_STATUS  = TRUE
+READ_DISABLED_CAP  = TRUE
+READ_ENABLED_CAP   = TRUE
+READ_STATUS        = TRUE
+READ_LOCK_CAP      = TRUE
+READ_LOCK_STATUS   = TRUE
+FvNameGuid         = 87940482-fc81-41c3-87e6-399cf85ac8a0
+
+  INF ArmPkg/Drivers/StandaloneMmCpu/StandaloneMmCpu.inf
+  INF MdeModulePkg/Universal/Variable/RuntimeDxe/VariableStandaloneMm.inf
+
+!if $(CLOSED_MM) == TRUE
+  #
+  # Extracted vendor StandaloneMM modules (prebuilt PE32, no source).
+  # FILE GUID = FFS GUID from closed_firmware/03_uefi_standalonemm/_layout.txt.
+  # Their original SMM_DEPEX is replaced with a TRUE depex so our MM dispatcher
+  # runs them regardless of vendor protocol dependencies. Their own Core/Cpu
+  # (6e14b6fd / 58f7a62b) are intentionally NOT included.
+  # Handler GUIDs reachable over SMC are in closed_firmware/06_mm_handler_guids.txt.
+  #
+  DEFINE CMM = closed_firmware/05_pe32_modules/standalonemm
+  DEFINE CMMDEPEX = Platform/Qemu/SbsaQemu/StandaloneMm/closed_mm_true.depex
+
+  FILE MM_STANDALONE = 5b76631e-32b2-4d3c-8617-371658735119 {
+    SECTION SMM_DEPEX = $(CMMDEPEX)
+    SECTION PE32 = $(CMM)/AfriVariableMm_5b76631e.efi
+    SECTION UI = "AfriVariableMm"
+  }
+  FILE MM_STANDALONE = cb1ed8fa-8b9c-457d-9676-97b091d15ff2 {
+    SECTION SMM_DEPEX = $(CMMDEPEX)
+    SECTION PE32 = $(CMM)/SceHiiInterfaceMm_cb1ed8fa.efi
+    SECTION UI = "SceHiiInterfaceMm"
+  }
+  FILE MM_STANDALONE = 2a500cfb-920e-49f4-9988-5ce4c0efd3ab {
+    SECTION SMM_DEPEX = $(CMMDEPEX)
+    SECTION PE32 = $(CMM)/SmbiosDmiEditAfriMmi_2a500cfb.efi
+    SECTION UI = "SmbiosDmiEditAfriMmi"
+  }
+  FILE MM_STANDALONE = ebfbcba7-1f9e-42f7-842e-86a63b2710d6 {
+    SECTION SMM_DEPEX = $(CMMDEPEX)
+    SECTION PE32 = $(CMM)/Tcg2StandaloneMmArm_ebfbcba7.efi
+    SECTION UI = "Tcg2StandaloneMmArm"
+  }
+  FILE MM_STANDALONE = 907599ed-6550-4032-80bc-4fbf8ab8ed67 {
+    SECTION SMM_DEPEX = $(CMMDEPEX)
+    SECTION PE32 = $(CMM)/RuntimeFlash2ThruMm_907599ed.efi
+    SECTION UI = "RuntimeFlash2ThruMm"
+  }
+  FILE MM_STANDALONE = 0eb3f06b-7a84-418e-a615-fcd823d900f9 {
+    SECTION SMM_DEPEX = $(CMMDEPEX)
+    SECTION PE32 = $(CMM)/NvramUpdateMm_0eb3f06b.efi
+    SECTION UI = "NvramUpdateMm"
+  }
+  FILE MM_STANDALONE = 6952daa1-4f31-421b-b5ee-ee2f13b417c3 {
+    SECTION SMM_DEPEX = $(CMMDEPEX)
+    SECTION PE32 = $(CMM)/NvramStandaloneMm_6952daa1.efi
+    SECTION UI = "NvramStandaloneMm"
+  }
+!endif
+
+[FV.FVMAIN_COMPACT]
+FvAlignment        = 16
+ERASE_POLARITY     = 1
+MEMORY_MAPPED      = TRUE
+STICKY_WRITE       = TRUE
+LOCK_CAP           = TRUE
+LOCK_STATUS        = TRUE
+WRITE_DISABLED_CAP = TRUE
+WRITE_ENABLED_CAP  = TRUE
+WRITE_STATUS       = TRUE
+WRITE_LOCK_CAP     = TRUE
+WRITE_LOCK_STATUS  = TRUE
+READ_DISABLED_CAP  = TRUE
+READ_ENABLED_CAP   = TRUE
+READ_STATUS        = TRUE
+READ_LOCK_CAP      = TRUE
+READ_LOCK_STATUS   = TRUE
+
+  INF StandaloneMmPkg/Core/StandaloneMmCore.inf
+  FILE FV_IMAGE = 9E21FD93-9C72-4c15-8C4B-E77F1DB2D792 {
+    SECTION GUIDED EE4E5898-3914-4259-9D6E-DC7BD79403CF PROCESSING_REQUIRED = TRUE {
+      SECTION FV_IMAGE = FVMAIN
+    }
+  }
+
+[Rule.Common.MM_CORE_STANDALONE]
+  FILE SEC = $(NAMED_GUID) RELOCS_STRIPPED FIXED {
+    PE32  PE32 Align = Auto             $(INF_OUTPUT)/$(MODULE_NAME).efi
+  }
+
+[Rule.Common.MM_STANDALONE]
+  FILE MM_STANDALONE = $(NAMED_GUID) {
+    SMM_DEPEX SMM_DEPEX Optional       $(INF_OUTPUT)/$(MODULE_NAME).depex
+    PE32      PE32                     $(INF_OUTPUT)/$(MODULE_NAME).efi
+    UI        STRING="$(MODULE_NAME)" Optional
+    VERSION   STRING="$(INF_VERSION)" Optional BUILD_NUM=$(BUILD_NUMBER)
+  }

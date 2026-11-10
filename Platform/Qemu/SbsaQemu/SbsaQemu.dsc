@@ -32,6 +32,12 @@
 
   DEFINE DEBUG_PRINT_ERROR_LEVEL = 0x8000004F
 
+  #
+  # ENABLE_STMM: UEFI variables are served by StandaloneMM (S-EL0 SP under
+  # TF-A SPM_MM) via MmCommunicationDxe + VariableSmmRuntimeDxe.
+  #
+  DEFINE ENABLE_STMM             = FALSE
+
 #
 # Network definition
 #
@@ -289,6 +295,9 @@ DEFINE NETWORK_HTTP_BOOT_ENABLE       = FALSE
 
 [PcdsFeatureFlag.common]
   gEfiMdeModulePkgTokenSpaceGuid.PcdHiiOsRuntimeSupport|FALSE
+!if $(ENABLE_STMM) == TRUE
+  gEfiMdeModulePkgTokenSpaceGuid.PcdEnableVariableRuntimeCache|FALSE
+!endif
 
   gEmbeddedTokenSpaceGuid.PcdPrePiProduceMemoryTypeInformationHob|TRUE
 
@@ -305,6 +314,14 @@ DEFINE NETWORK_HTTP_BOOT_ENABLE       = FALSE
   gUefiOvmfPkgTokenSpaceGuid.PcdRemapFrameBufferWriteCombine|TRUE
 
 [PcdsFixedAtBuild.common]
+!if $(ENABLE_STMM) == TRUE
+  # Variables live in StandaloneMM with an emulated (RAM) store: tell BDS not to
+  # reboot after regenerating boot options (would loop forever) and fall back
+  # to the UEFI Shell (runs startup.nsh).
+  gEfiMdeModulePkgTokenSpaceGuid.PcdEmuVariableNvModeEnable|TRUE
+  gArmTokenSpaceGuid.PcdUefiShellDefaultBootEnable|TRUE
+!endif
+
   gEfiMdePkgTokenSpaceGuid.PcdMaximumUnicodeStringLength|1000000
   gEfiMdePkgTokenSpaceGuid.PcdMaximumAsciiStringLength|1000000
   gEfiMdePkgTokenSpaceGuid.PcdMaximumLinkedListLength|1000000
@@ -498,6 +515,17 @@ DEFINE NETWORK_HTTP_BOOT_ENABLE       = FALSE
   # TODO as no DT will be used we should pass this by some other method
   gArmTokenSpaceGuid.PcdSystemMemorySize|0x08000000
 
+  # NS buffer for MM_COMMUNICATE: TF-A SPM_MM carves it from the top of the
+  # first DRAM node (reserved-memory "ns-buf-spm-mm", 2MB, see TF-A
+  # plat/qemu/common/qemu_spm.c). SbsaQemuLib removes it from system memory
+  # and sets PcdMmBufferBase when PcdMmBufferSize != 0.
+  gArmTokenSpaceGuid.PcdMmBufferBase|0x0
+!if $(ENABLE_STMM) == TRUE
+  gArmTokenSpaceGuid.PcdMmBufferSize|0x200000
+!else
+  gArmTokenSpaceGuid.PcdMmBufferSize|0x0
+!endif
+
   #
   # ARM General Interrupt Controller
   #
@@ -623,19 +651,31 @@ DEFINE NETWORK_HTTP_BOOT_ENABLE       = FALSE
   #
   ArmPkg/Drivers/CpuDxe/CpuDxe.inf
   MdeModulePkg/Core/RuntimeDxe/RuntimeDxe.inf
+!if $(ENABLE_STMM) == TRUE
+  ArmPkg/Drivers/MmCommunicationDxe/MmCommunication.inf {
+    <LibraryClasses>
+      ArmFfaLib|MdeModulePkg/Library/ArmFfaLib/ArmFfaDxeLib.inf
+      ArmSvcLib|MdePkg/Library/ArmSvcLib/ArmSvcLib.inf
+      NULL|StandaloneMmPkg/Library/VariableMmDependency/VariableMmDependency.inf
+  }
+  MdeModulePkg/Universal/Variable/RuntimeDxe/VariableSmmRuntimeDxe.inf
+!else
   MdeModulePkg/Universal/Variable/RuntimeDxe/VariableRuntimeDxe.inf {
     <LibraryClasses>
       NULL|MdeModulePkg/Library/VarCheckUefiLib/VarCheckUefiLib.inf
       # don't use unaligned CopyMem () on the UEFI varstore NOR flash region
       BaseMemoryLib|MdePkg/Library/BaseMemoryLib/BaseMemoryLib.inf
   }
+!endif
   MdeModulePkg/Universal/SecurityStubDxe/SecurityStubDxe.inf {
     <LibraryClasses>
       NULL|SecurityPkg/Library/DxeImageVerificationLib/DxeImageVerificationLib.inf
   }
   SecurityPkg/VariableAuthenticated/SecureBootConfigDxe/SecureBootConfigDxe.inf
   MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf
+!if $(ENABLE_STMM) == FALSE
   MdeModulePkg/Universal/FaultTolerantWriteDxe/FaultTolerantWriteDxe.inf
+!endif
   MdeModulePkg/Universal/MonotonicCounterRuntimeDxe/MonotonicCounterRuntimeDxe.inf
   MdeModulePkg/Universal/ResetSystemRuntimeDxe/ResetSystemRuntimeDxe.inf
   EmbeddedPkg/RealTimeClockRuntimeDxe/RealTimeClockRuntimeDxe.inf
@@ -651,7 +691,9 @@ DEFINE NETWORK_HTTP_BOOT_ENABLE       = FALSE
 
   ArmPkg/Drivers/ArmGicDxe/ArmGicDxe.inf
   ArmPkg/Drivers/TimerDxe/TimerDxe.inf
+!if $(ENABLE_STMM) == FALSE
   OvmfPkg/VirtNorFlashDxe/VirtNorFlashDxe.inf
+!endif
   MdeModulePkg/Universal/WatchdogTimerDxe/WatchdogTimer.inf
   Silicon/Qemu/SbsaQemu/Drivers/SbsaQemuHighMemDxe/SbsaQemuHighMemDxe.inf
   SecurityPkg/RandomNumberGenerator/RngDxe/RngDxe.inf {
