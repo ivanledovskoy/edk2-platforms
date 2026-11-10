@@ -47,6 +47,18 @@ SbsaQemuLibConstructor (
 
   // Make sure the start of DRAM matches our expectation
   ASSERT (FixedPcdGet64 (PcdSystemMemoryBase) == NewBase);
+
+  //
+  // StandaloneMM (TF-A SPM_MM): the NS communication buffer is placed by
+  // TF-A at the top of the first DRAM node. Keep it out of UEFI system
+  // memory so MmCommunicationDxe can register it as reserved MMIO-like space.
+  //
+  if (PcdGet64 (PcdMmBufferSize) != 0) {
+    ASSERT (NewSize > PcdGet64 (PcdMmBufferSize));
+    NewSize  -= PcdGet64 (PcdMmBufferSize);
+    PcdStatus = PcdSet64S (PcdMmBufferBase, NewBase + NewSize);
+    ASSERT_RETURN_ERROR (PcdStatus);
+  }
   PcdStatus = PcdSet64S (PcdSystemMemorySize, NewSize);
   ASSERT_RETURN_ERROR (PcdStatus);
 

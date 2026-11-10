@@ -39,6 +39,8 @@
 [Pcd]
   gArmTokenSpaceGuid.PcdSystemMemoryBase
   gArmTokenSpaceGuid.PcdSystemMemorySize
+  gArmTokenSpaceGuid.PcdMmBufferBase
+  gArmTokenSpaceGuid.PcdMmBufferSize
 
 [FixedPcd]
   gArmTokenSpaceGuid.PcdFdBaseAddress
